@@ -53,51 +53,29 @@ const STABLECOINS = new Set([
 // ─── Chat ID Yönetimi (Upstash Redis veya Env Fallback) ───────────────────────
 // Upstash REST API — hiç npm paketi gerektirmez, sadece fetch yeterli
 
-const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
-const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-const REDIS_KEY   = 'binance_bot_chat_ids';
-
-async function redisCmd(...args) {
-  if (!REDIS_URL || !REDIS_TOKEN) return null;
+// CHAT_IDS env var'ı JSON array olarak okunur
+// Örnek: ["123456789","987654321"]
+function loadChatIds() {
   try {
-    const res = await fetch(`${REDIS_URL}/${args.map(encodeURIComponent).join('/')}`, {
-      headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
-    });
-    const json = await res.json();
-    return json.result ?? null;
-  } catch { return null; }
+    const raw = process.env.CHAT_IDS || '[]';
+    const ids = JSON.parse(raw);
+    return Array.isArray(ids) ? ids.map(String) : [];
+  } catch { return []; }
 }
 
-async function loadChatIds() {
-  if (REDIS_URL && REDIS_TOKEN) {
-    const raw = await redisCmd('SMEMBERS', REDIS_KEY);
-    if (Array.isArray(raw)) return raw.map(String);
-  }
-  // Fallback: CHAT_IDS env var
-  const env = process.env.CHAT_IDS || '';
-  return env ? env.split(',').map(s => s.trim()).filter(Boolean) : [];
-}
-
-async function addChatId(chatId) {
-  if (REDIS_URL && REDIS_TOKEN) {
-    const added = await redisCmd('SADD', REDIS_KEY, String(chatId));
-    return added === 1;
-  }
-  // Redis yok: env var ekleme yapılamaz, her zaman true dön (open access)
-  return true;
-}
-
-async function removeChatId(chatId) {
-  if (REDIS_URL && REDIS_TOKEN) {
-    const removed = await redisCmd('SREM', REDIS_KEY, String(chatId));
-    return removed === 1;
-  }
+function addChatId(chatId) {
+  // Vercel'de env var runtime'da değiştirilemez
+  // /start komutu chat ID'yi gösterir, Vercel dashboard'dan manuel eklersin
   return false;
 }
 
-async function isAuthorized(chatId) {
-  const ids = await loadChatIds();
-  if (ids.length === 0) return true; // Hiç kayıt yoksa herkese açık
+function removeChatId(chatId) {
+  return false;
+}
+
+function isAuthorized(chatId) {
+  const ids = loadChatIds();
+  if (ids.length === 0) return true; // CHAT_IDS boşsa herkese açık
   return ids.includes(String(chatId));
 }
 
@@ -441,37 +419,27 @@ const HELP_TEXT =
 async function handleMessage(chatId, text) {
   const cmd = text.trim().split(' ')[0].toLowerCase(); // ilk kelime (bot @mention'ı varsa temizle)
 
-  // /start → Chat ID kaydet
+  // /start → Chat ID göster
   if (cmd === '/start') {
-    const isNew = await addChatId(chatId);
-    if (isNew) {
-      await tgSend(chatId,
-        `✅ <b>Kayıt başarılı!</b>\n` +
-        `Chat ID'n: <code>${chatId}</code> kaydedildi.\n\n` +
-        HELP_TEXT
-      );
-    } else {
-      await tgSend(chatId,
-        `ℹ️ Zaten kayıtlısın.\n` +
-        `Chat ID: <code>${chatId}</code>\n\n` +
-        HELP_TEXT
-      );
-    }
+    const authorized = isAuthorized(chatId);
+    await tgSend(chatId,
+      `👋 Merhaba!\n` +
+      `Chat ID'n: <code>${chatId}</code>\n\n` +
+      (authorized
+        ? `✅ Erişimin var.\n\n` + HELP_TEXT
+        : `⛔ Erişimin yok.\n` +
+          `Vercel Dashboard → Settings → Environment Variables → <code>CHAT_IDS</code> değerine bu ID'yi ekle:\n` +
+          `<code>["${chatId}"]</code>`)
+    );
     return;
   }
 
-  // /stop → Chat ID sil
+  // /stop → Bilgi ver
   if (cmd === '/stop') {
-    const removed = await removeChatId(chatId);
-    if (removed) {
-      await tgSend(chatId,
-        `🗑️ <b>Kaydın silindi.</b>\n` +
-        `Artık tarama sonuçları gelmeyecek.\n` +
-        `Tekrar başlamak için /start yaz.`
-      );
-    } else {
-      await tgSend(chatId, `ℹ️ Zaten kayıtlı değilsin. Başlamak için /start yaz.`);
-    }
+    await tgSend(chatId,
+      `ℹ️ Erişimi kaldırmak için Vercel Dashboard'dan\n` +
+      `<code>CHAT_IDS</code> listesinden ID'ni sil: <code>${chatId}</code>`
+    );
     return;
   }
 
