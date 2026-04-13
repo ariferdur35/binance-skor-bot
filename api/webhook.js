@@ -417,7 +417,7 @@ const HELP_TEXT =
   `Tarama ~15 saniye sürer.`;
 
 async function handleMessage(chatId, text) {
-  const cmd = text.trim().split(' ')[0].toLowerCase(); // ilk kelime (bot @mention'ı varsa temizle)
+  const cmd = text.trim().split(' ')[0].split('@')[0].toLowerCase(); // ilk kelime (bot @mention'ı varsa temizle)
 
   // /start → Chat ID göster
   if (cmd === '/start') {

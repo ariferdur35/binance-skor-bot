@@ -435,7 +435,7 @@ const HELP_TEXT =
 const activeScans = new Set();
 
 async function handleMessage(chatId, text) {
-  const cmd = text.trim().split(' ')[0].toLowerCase();
+  const cmd = text.trim().split(' ')[0].split('@')[0].toLowerCase();
 
   // /start → Chat ID kaydet
   if (cmd === '/start') {
