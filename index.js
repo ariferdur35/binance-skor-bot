@@ -498,9 +498,12 @@ async function handleMessage(chatId, text) {
 
   try {
     const t0 = Date.now();
+    console.log('📡 Coin listesi çekiliyor...');
     const { results, total } = await runScan(tf.interval, tf.htfGroup);
+    console.log(`✅ Tarama bitti: ${total} coin, ${results.length} sonuç`);
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
     const msg     = formatResults(results, tf.label, elapsed, total);
+    console.log(`📨 Mesaj gönderiliyor... (${msg.length} karakter)`);
 
     if (msg.length <= 4096) {
       await tgSend(chatId, msg);

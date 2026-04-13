@@ -310,9 +310,14 @@ function calcScore(r) {
 async function runScan(interval, htfGroup) {
   const BARS = interval === '15m' ? 400 : 200;
 
+  console.log('⏳ buildSymbolList başlıyor...');
   const symbolList = await buildSymbolList();
-  const symbols    = symbolList.map(s => s.symbol);
-  const klineMap   = await fetchAllKlines(symbols, interval, BARS);
+  console.log(`✅ ${symbolList.length} coin bulundu`);
+
+  const symbols = symbolList.map(s => s.symbol);
+  console.log('⏳ klines çekiliyor...');
+  const klineMap = await fetchAllKlines(symbols, interval, BARS);
+  console.log(`✅ klines tamamlandı`);
 
   const results = [];
   for (const item of symbolList) {
@@ -489,24 +494,27 @@ async function handleMessage(chatId, text) {
 // ─── Vercel Handler ───────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
-  // Sadece POST isteklerini kabul et
   if (req.method !== 'POST') {
     return res.status(200).json({ status: 'Binance Scanner Bot aktif' });
   }
 
-  // Telegram'a hemen 200 döndür (5s timeout'u önler)
-  res.status(200).json({ ok: true });
-
-  // Update'i işle (cevap gönderdikten sonra da çalışmaya devam eder)
   try {
     const update = req.body;
     const msg    = update?.message || update?.channel_post;
-    if (!msg?.text) return;
+
+    if (!msg?.text) {
+      return res.status(200).json({ ok: true });
+    }
 
     const chatId = String(msg.chat.id);
     console.log(`[${new Date().toISOString()}] Chat:${chatId} → "${msg.text}"`);
+
+    // Önce işle, sonra Telegram'a 200 dön
+    // Telegram 60 saniye bekler, tarama ~15 saniye sürer — sorun yok
     await handleMessage(chatId, msg.text);
   } catch (err) {
     console.error('Handler error:', err);
   }
+
+  res.status(200).json({ ok: true });
 }
